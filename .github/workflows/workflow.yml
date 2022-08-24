@@ -1,0 +1,55 @@
+on: push
+name: Huawei Cloud CCE - CI/CD Pipeline
+
+jobs:
+
+  build-publish-deploy:
+      name: Build, Push and Deploy
+      runs-on: ubuntu-latest
+      env:
+        REGION: ${{ secrets.REGION }}
+        ACCESS_KEY_ID: ${{ secrets.HC_ACCESS_KEY_ID }}
+        ACCESS_KEY_SECRET: ${{ secrets.HC_ACCESS_KEY_SECRET }}
+        PROJECT_ID: ${{ secrets.HC_CCE_PROJECT_ID }}
+        CLUSTER_ID: ${{ secrets.HC_CCE_CLUSTER_ID }}
+        KUBECONFIG: ${{ secrets.HC_CCE_KUBECONFIG }}
+        SWR_ENDPOINT: ${{ secrets.SWR_ENDPOINT }}
+        SWR_ORGANIZATION_NAME: ${{ secrets.SWR_ORGANIZATION_NAME }}
+        IMAGE_NAME: aspnetapp
+        GITHUB_SHA: ${{ github.sha }}
+        DEPLOYMENT_NAME: aspnetapp
+        DOCKER_WORKING_DIRECTORY: ./docker
+        KUBERNETES_WORKING_DIRECTORY: ./kubernetes
+      steps:
+      #  Login to SWR
+      - name: Login to SWR
+        uses: huaweicloud/swr-login@v1
+        with:
+          region: ${{ env.REGION }}
+          access-key-id: ${{ env.ACCESS_KEY_ID }}
+          access-key-secret: ${{ env.ACCESS_KEY_SECRET }}
+      # Check out the code
+      - name: Check out code
+        uses: actions/checkout@v2
+      # Build the Docker image
+      - name: Build the Docker image
+        run: |
+          docker build -t "${{ env.SWR_ENDPOINT }}"/"${{ env.SWR_ORGANIZATION_NAME }}"/"${{ env.IMAGE_NAME }}":"${{ env.GITHUB_SHA }}" -f "${{ env.DOCKER_WORKING_DIRECTORY }}"/Dockerfile .
+      # Push the Docker image to SWR
+      - name: Push the image to SWR
+        run: |
+          docker push "${{ env.SWR_ENDPOINT }}"/"${{ env.SWR_ORGANIZATION_NAME }}"/"${{ env.IMAGE_NAME }}":"${{ env.GITHUB_SHA }}"
+      # Login to CCE
+      - name: Login to CCE
+        uses: huaweicloud/cce-cluster-credentials@v1
+        with:
+          region: ${{ env.REGION }}
+          access-key-id: ${{ env.ACCESS_KEY_ID }}
+          access-key-secret: ${{ env.ACCESS_KEY_SECRET }}
+          project-id: ${{ env.PROJECT_ID }}
+          cluster-id: ${{ env.CLUSTER_ID }}
+      # Deploy to CCE
+      - name: Deploy to CCE
+        run: |
+          sed -i'' -e 's/IMAGE_LABEL/${{ env.GITHUB_SHA }}/g' "${{ env.KUBERNETES_WORKING_DIRECTORY }}"/*deployment.yaml
+          kubectl apply -f "${{ env.KUBERNETES_WORKING_DIRECTORY }}"

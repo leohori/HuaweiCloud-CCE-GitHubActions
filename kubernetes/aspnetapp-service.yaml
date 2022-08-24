@@ -1,0 +1,20 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: aspdotnet-elb
+  labels:
+    app: aspdotnet
+  namespace: default
+spec:
+  selector:
+    app: aspdotnet
+  externalTrafficPolicy: Cluster
+  ports:
+    - name: cce-service-0
+      targetPort: 80
+      nodePort: 0
+      port: 8000
+      protocol: TCP
+  type: LoadBalancer
+  loadBalancerIP: 172.17.106.241
+  
